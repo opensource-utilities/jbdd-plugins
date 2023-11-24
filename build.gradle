@@ -1,0 +1,154 @@
+plugins {
+    id 'java-library'
+    id "base"
+    //id "checkstyle"
+    id 'jacoco'
+    //id "com.github.spotbugs" version "4.7.6"
+    id "maven-publish"
+    id "signing"
+}
+
+allprojects {
+
+    group build_group
+    version build_version
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+
+    //apply plugin: 'checkstyle'
+    //apply plugin: 'com.github.spotbugs'
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+    apply plugin: 'jacoco'
+    apply plugin: 'signing'
+
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+
+    ext {
+        jBddVersion = '2.0.0'
+        junitVersion = '5.9.3'
+        assertJVersion = '3.24.2'
+        allureVersion = '2.24.0'
+        restAssuredVersion = '5.3.2'
+        jacksonVersion = '2.15.3'
+        slf4jVersion = '2.0.9'
+        springBootVersion = '2.7.17'
+        mockitoVersion = '5.7.0'
+        wiremockVersion = '3.3.1'
+
+        pomInfo = {
+            name 'jBdd'
+            url 'https://github.com/awiodev/jbdd'
+            scm {
+                connection 'https://github.com/awiodev/jbdd.git'
+                developerConnection 'https://github.com/awiodev/jbdd.git'
+                url 'https://github.com/awiodev/jbdd'
+            }
+            licenses {
+                license {
+                    name 'The Apache Software License, Version 2.0'
+                    url 'http://www.apache.org/license/LICENSE-2.0.txt'
+                    distribution 'repo'
+                }
+            }
+            developers {
+                developer {
+                    id 'awiodev'
+                    name 'awiodev'
+                }
+            }
+        }
+    }
+
+    configurations {
+        all {
+            exclude module: "log4j-to-slf4j"
+            exclude group: "ch.qos.logback"
+        }
+    }
+
+    dependencies {
+        constraints {
+            api "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+            api "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+            api "org.assertj:assertj-core:$assertJVersion"
+            api "io.qameta.allure:allure-java-commons:$allureVersion"
+            api "io.rest-assured:rest-assured:$restAssuredVersion"
+            api "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+            api "org.slf4j:slf4j-api:$slf4jVersion"
+            api "org.springframework.boot:spring-boot-starter:$springBootVersion"
+            api "org.springframework.boot:spring-boot-starter-test:$springBootVersion"
+            api "org.springframework.boot:spring-boot-starter-log4j2:$springBootVersion"
+            api "org.mockito:mockito-core:$mockitoVersion"
+            api "org.wiremock:wiremock:$wiremockVersion"
+
+        }
+    }
+
+    task javadocJar(type: Jar) {
+        archiveClassifier = 'javadoc'
+        from javadoc
+    }
+
+    task sourceJar(type: Jar) {
+        classifier 'sources'
+        from sourceSets.main.allJava
+    }
+
+    publishing {
+
+        repositories {
+            maven {
+
+                if(build_version.endsWith('-SNAPSHOT')) {
+                    url 'https://s01.oss.sonatype.org/content/repositories/snapshots'
+                } else {
+                    url 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2'
+                }
+
+                credentials {
+                    username System.env.MVNC_USR
+                    password System.env.MVNC_PW
+                }
+            }
+        }
+
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                artifact tasks.sourceJar
+                artifact tasks.javadocJar
+                pom.withXml {
+                    asNode().appendNode('description', 'Simple BDD abstraction')
+                    asNode().children().last() + pomInfo
+                }
+            }
+        }
+    }
+
+    signing {
+        def signingKey = findProperty("signingKey")
+        def signingPassword = findProperty("signingPassword")
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign(publishing.publications)
+    }
+
+    test {
+        useJUnitPlatform()
+
+        jacoco {
+            enabled = true
+        }
+    }
+}
+
+
+wrapper {
+    gradleVersion = "7.6"
+}
